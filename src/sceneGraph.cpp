@@ -26,12 +26,16 @@ void printNode(SceneNode* node) {
 		"    Rotation: (%f, %f, %f)\n"
 		"    Location: (%f, %f, %f)\n"
 		"    Reference point: (%f, %f, %f)\n"
-		"    VAO ID: %i\n"
-		"}\n",
+		"    VAO ID: %i\n",
 		int(node->children.size()),
 		node->rotation.x, node->rotation.y, node->rotation.z,
 		node->position.x, node->position.y, node->position.z,
-		node->referencePoint.x, node->referencePoint.y, node->referencePoint.z, 
+		node->referencePoint.x, node->referencePoint.y, node->referencePoint.z,
 		node->vertexArrayObjectID);
+
+    if(node -> nodeType == POINT_LIGHT || node->nodeType == SPOT_LIGHT){
+        printf("    LS ID: %i\n", node-> lightSourceID);
+    }
+    printf("}\n");
 }
 

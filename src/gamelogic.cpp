@@ -35,6 +35,10 @@ SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* padNode;
 
+SceneNode* rootLightNode;
+SceneNode* padLightNode;
+SceneNode* ballLightNode;
+
 double ballRadius = 3.0f;
 
 // These are heap allocated, because they should not be initialised at the start of the program
@@ -88,10 +92,30 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
 }
 
 //// A few lines to help you if you've never used c++ structs
-// struct LightSource {
-//     bool a_placeholder_value;
-// };
-// LightSource lightSources[/*Put number of light sources you want here*/];
+struct LightSource {
+    LightSource(){
+        type = POINT_LIGHT;
+
+        ambient  = 0.0;
+        diffuse  = 0.0;
+        specular = 0.0;
+
+        constant  = 0.0;
+        linear    = 0.0;
+        quadratic = 0.0;
+    }
+    int type;
+
+    float ambient;
+    float diffuse;
+    float specular;
+
+    float constant;
+    float linear;
+    float quadratic;
+};
+
+LightSource lightSources[3];
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     buffer = new sf::SoundBuffer();
@@ -119,15 +143,37 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     unsigned int padVAO  = generateBuffer(pad);
 
     // Construct scene
-    rootNode = createSceneNode();
-    boxNode  = createSceneNode();
-    padNode  = createSceneNode();
-    ballNode = createSceneNode();
+    rootNode  = createSceneNode();
+    boxNode   = createSceneNode();
+    padNode   = createSceneNode();
+    ballNode  = createSceneNode();
 
+    // Creating lightsourceNodes
+    rootLightNode  = createSceneNode();
+    padLightNode  = createSceneNode();
+    ballLightNode = createSceneNode();
+
+    // Setting lightsources as point lights
+    rootLightNode->nodeType = POINT_LIGHT;
+    padLightNode ->nodeType = POINT_LIGHT;
+    ballLightNode->nodeType = POINT_LIGHT;
+
+    // Attaching light sources
+    rootLightNode->lightSourceID = 0;
+    padLightNode ->lightSourceID = 1;
+    ballLightNode->lightSourceID = 2;
+
+    // Initializing scene graph
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
     rootNode->children.push_back(ballNode);
 
+    // attach Light sources to the desired scene nodes.
+    rootNode->children.push_back(rootLightNode);
+    padNode ->children.push_back(padLightNode);
+    ballNode->children.push_back(ballLightNode);
+
+    // assigning IDs to the nodes
     boxNode->vertexArrayObjectID = boxVAO;
     boxNode->VAOIndexCount = box.indices.size();
 
@@ -136,6 +182,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     ballNode->vertexArrayObjectID = ballVAO;
     ballNode->VAOIndexCount = sphere.indices.size();
+
+
 
 
 
@@ -179,7 +227,7 @@ void updateFrame(GLFWwindow* window) {
         mouseRightReleased = mouseRightPressed;
         mouseRightPressed = false;
     }
-    
+
     if(!hasStarted) {
         if (mouseLeftPressed) {
             if (options.enableMusic) {
@@ -310,7 +358,7 @@ void updateFrame(GLFWwindow* window) {
 
     // Some math to make the camera move in a nice way
     float lookRotation = -0.6 / (1 + exp(-5 * (padPositionX-0.5))) + 0.3;
-    glm::mat4 cameraTransform = 
+    glm::mat4 cameraTransform =
                     glm::rotate(0.3f + 0.2f * float(-padPositionZ*padPositionZ), glm::vec3(1, 0, 0)) *
                     glm::rotate(lookRotation, glm::vec3(0, 1, 0)) *
                     glm::translate(-cameraPosition);
@@ -324,20 +372,20 @@ void updateFrame(GLFWwindow* window) {
     ballNode->scale = glm::vec3(ballRadius);
     ballNode->rotation = { 0, totalElapsedTime*2, 0 };
 
-    padNode->position  = { 
-        boxNode->position.x - (boxDimensions.x/2) + (padDimensions.x/2) + (1 - padPositionX) * (boxDimensions.x - padDimensions.x), 
-        boxNode->position.y - (boxDimensions.y/2) + (padDimensions.y/2), 
+    padNode->position  = {
+        boxNode->position.x - (boxDimensions.x/2) + (padDimensions.x/2) + (1 - padPositionX) * (boxDimensions.x - padDimensions.x),
+        boxNode->position.y - (boxDimensions.y/2) + (padDimensions.y/2),
         boxNode->position.z - (boxDimensions.z/2) + (padDimensions.z/2) + (1 - padPositionZ) * (boxDimensions.z - padDimensions.z)
     };
 
-    updateNodeTransformations(rootNode, VP);
+    updateNodeTransformations(rootNode, VP, glm::mat4(0.0f));
 
 
 
 
 }
 
-void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar) {
+void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar, glm::mat4 parentModelMatrix) {
     glm::mat4 transformationMatrix =
               glm::translate(node->position)
             * glm::translate(node->referencePoint)
@@ -348,6 +396,7 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar)
             * glm::translate(-node->referencePoint);
 
     node->currentTransformationMatrix = transformationThusFar * transformationMatrix;
+    node->currentModelMatrix = parentModelMatrix * transformationMatrix;
 
     switch(node->nodeType) {
         case GEOMETRY: break;
@@ -356,7 +405,7 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar)
     }
 
     for(SceneNode* child : node->children) {
-        updateNodeTransformations(child, node->currentTransformationMatrix);
+        updateNodeTransformations(child, node->currentTransformationMatrix, node->currentModelMatrix);
     }
 }
 
@@ -370,7 +419,10 @@ void renderNode(SceneNode* node) {
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;
-        case POINT_LIGHT: break;
+        case POINT_LIGHT:
+            // Do something with the light.
+            break;
+
         case SPOT_LIGHT: break;
     }
 
