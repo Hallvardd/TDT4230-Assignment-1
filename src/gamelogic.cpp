@@ -93,29 +93,31 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
 
 //// A few lines to help you if you've never used c++ structs
 struct LightSource {
-    LightSource(){
-        type = POINT_LIGHT;
 
-        ambient  = 0.0;
-        diffuse  = 0.0;
-        specular = 0.0;
+    glm::vec4 position;
 
-        constant  = 0.0;
-        linear    = 0.0;
-        quadratic = 0.0;
-    }
-    int type;
-
-    float ambient;
-    float diffuse;
-    float specular;
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
 
     float constant;
     float linear;
     float quadratic;
+
+    LightSource(){
+        position  = glm::vec4(glm::vec3(0.0f), 1.0f);
+        // initialized as white light
+    ambient   = glm::vec3(1.0f);
+    diffuse   = glm::vec3(1.0f);
+    specular  = glm::vec3(1.0f);
+    constant  = 1.0f;
+    linear    = 0.5f;
+    quadratic = 0.2f;
+          }
 };
 
-LightSource lightSources[3];
+const unsigned int NR_OF_LIGHTS = 3;
+LightSource lightSources[NR_OF_LIGHTS];
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     buffer = new sf::SoundBuffer();
@@ -169,8 +171,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     rootNode->children.push_back(ballNode);
 
     // attach Light sources to the desired scene nodes.
-    rootNode->children.push_back(rootLightNode);
-    padNode ->children.push_back(padLightNode);
+    ballNode->children.push_back(rootLightNode);
+    ballNode ->children.push_back(padLightNode);
     ballNode->children.push_back(ballLightNode);
 
     // assigning IDs to the nodes
@@ -182,12 +184,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     ballNode->vertexArrayObjectID = ballVAO;
     ballNode->VAOIndexCount = sphere.indices.size();
-
-
-
-
-
-
 
 
     getTimeDeltaSeconds();
@@ -378,12 +374,9 @@ void updateFrame(GLFWwindow* window) {
         boxNode->position.z - (boxDimensions.z/2) + (padDimensions.z/2) + (1 - padPositionZ) * (boxDimensions.z - padDimensions.z)
     };
 
-    updateNodeTransformations(rootNode, VP, glm::mat4(0.0f));
-
-
-
-
+    updateNodeTransformations(rootNode, VP, cameraTransform);
 }
+
 
 void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar, glm::mat4 parentModelMatrix) {
     glm::mat4 transformationMatrix =
@@ -396,11 +389,16 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
             * glm::translate(-node->referencePoint);
 
     node->currentTransformationMatrix = transformationThusFar * transformationMatrix;
+
     node->currentModelMatrix = parentModelMatrix * transformationMatrix;
+    node->normalMatrix = glm::mat3(glm::transpose(glm::inverse(parentModelMatrix*transformationMatrix)));
+
 
     switch(node->nodeType) {
         case GEOMETRY: break;
-        case POINT_LIGHT: break;
+        case POINT_LIGHT:
+            lightSources[node->lightSourceID].position = (node->currentTransformationMatrix)*glm::vec4(glm::vec3(0.0f), 1.0f);
+            break;
         case SPOT_LIGHT: break;
     }
 
@@ -411,6 +409,8 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
 
 void renderNode(SceneNode* node) {
     glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
+    glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(node->currentModelMatrix));
+    glUniformMatrix3fv(5, 1, GL_FALSE, glm::value_ptr(node->normalMatrix));
 
     switch(node->nodeType) {
         case GEOMETRY:
@@ -420,7 +420,7 @@ void renderNode(SceneNode* node) {
             }
             break;
         case POINT_LIGHT:
-            // Do something with the light.
+            // pass the lights postition to the vertex shader
             break;
 
         case SPOT_LIGHT: break;
@@ -432,6 +432,13 @@ void renderNode(SceneNode* node) {
 }
 
 void renderFrame(GLFWwindow* window) {
+    // creating a list of light positions this could be done in a for loop for a higer number of light
+    glm::vec4 lightPositions[NR_OF_LIGHTS] = {lightSources[0].position,
+                                              lightSources[1].position,
+                                              lightSources[2].position};
+    // passing on the light positions to the fragment shader
+    glUniform4fv(13, NR_OF_LIGHTS, &lightPositions[0].x);
+
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
     glViewport(0, 0, windowWidth, windowHeight);
