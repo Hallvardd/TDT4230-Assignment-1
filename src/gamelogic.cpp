@@ -30,7 +30,7 @@ enum KeyFrameAction {
 double padPositionX = 0;
 double padPositionZ = 0;
 
-unsigned int currentKeyFrame = 0;
+unsigned int currentKeyFrame  = 0;
 unsigned int previousKeyFrame = 0;
 
 SceneNode* rootNode;
@@ -70,7 +70,7 @@ bool mouseRightReleased = false;
 // Modify if you want the music to start further on in the track. Measured in seconds.
 const float debug_startTime = 0;
 double totalElapsedTime = debug_startTime;
-double gameElapsedTime = debug_startTime;
+double gameElapsedTime  = debug_startTime;
 
 double mouseSensitivity = 1.0;
 double lastMouseX = windowWidth / 2;
@@ -110,12 +110,12 @@ struct LightSource {
     LightSource(){
         position  = glm::vec4(glm::vec3(0.0f), 1.0f);
         // initialized as white light
-        ambient   = glm::vec3(1.0f);
+        ambient   = glm::vec3(0.05f, 0.05f, 0.05f);
         diffuse   = glm::vec3(1.0f);
         specular  = glm::vec3(1.0f);
-        constant  = 1.0f;
-        linear    = 0.5f;
-        quadratic = 0.2f;
+        constant = 1.0f;
+        linear = 0.0022f;
+        quadratic = 0.00019f;
     }
 };
 
@@ -159,7 +159,11 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     ballLightNode = createSceneNode();
 
     // RootLightNode position.
-    rootLightNode->position = boxDimensions/3.0f;
+    rootLightNode->position = boxDimensions/3.0f*glm::vec3(1.0f, -1.0f, -0.5f);
+    // PadLightNode position
+    padLightNode ->position = glm::vec3(0.0f, ballRadius, 0.0f);
+    // BallLightNode position
+    ballLightNode->position = (boxDimensions/3.0f)*glm::vec3(-1.0f, -1.0f, -0.5f);
 
     // Setting lightsources as point lights
     rootLightNode->nodeType = POINT_LIGHT;
@@ -171,6 +175,16 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     padLightNode ->lightSourceID = 1;
     ballLightNode->lightSourceID = 2;
 
+    // Setting colours for lightSources
+    lightSources[rootLightNode->lightSourceID].diffuse = glm::vec3(0.75f, 0.5f, 0.0f);
+    lightSources[rootLightNode->lightSourceID].specular = glm::vec3(0.75f, 0.5f, 0.0f);
+
+    lightSources[padLightNode->lightSourceID].diffuse = glm::vec3(0.5f, 0.5f, 0.25f);
+    lightSources[padLightNode->lightSourceID].specular = glm::vec3(0.5f, 0.5f, 0.25f);
+
+    lightSources[ballLightNode->lightSourceID].diffuse = glm::vec3(0.0f, 0.25f, 0.75f);
+    lightSources[ballLightNode->lightSourceID].specular = glm::vec3(0.0f, 0.25f, 0.75f);
+
     // Initializing scene graph
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
@@ -179,7 +193,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // attach Light sources to the desired scene nodes.
     rootNode->children.push_back(rootLightNode);
     padNode ->children.push_back(padLightNode);
-    ballNode->children.push_back(ballLightNode);
+    rootNode->children.push_back(ballLightNode);
 
     // assigning IDs to the nodes
     boxNode->vertexArrayObjectID = boxVAO;
@@ -215,18 +229,18 @@ void updateFrame(GLFWwindow* window) {
     const float ballMaxZ = boxNode->position.z + (boxDimensions.z/2) - ballRadius - cameraWallOffset;
 
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1)) {
-        mouseLeftPressed = true;
+        mouseLeftPressed  = true;
         mouseLeftReleased = false;
     } else {
         mouseLeftReleased = mouseLeftPressed;
-        mouseLeftPressed = false;
+        mouseLeftPressed  = false;
     }
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2)) {
-        mouseRightPressed = true;
+        mouseRightPressed  = true;
         mouseRightReleased = false;
     } else {
         mouseRightReleased = mouseRightPressed;
-        mouseRightPressed = false;
+        mouseRightPressed  = false;
     }
 
     if(!hasStarted) {
@@ -354,7 +368,6 @@ void updateFrame(GLFWwindow* window) {
     }
 
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
-
     glm::vec3 cameraPosition = glm::vec3(0, 2, -20);
 
     // Some math to make the camera move in a nice way
@@ -379,8 +392,9 @@ void updateFrame(GLFWwindow* window) {
         boxNode->position.z - (boxDimensions.z/2) + (padDimensions.z/2) + (1 - padPositionZ) * (boxDimensions.z - padDimensions.z)
     };
 
-    glUniform3fv(9, 1, &cameraPosition.x);
-    updateNodeTransformations(rootNode, VP, cameraTransform);
+    glUniform3fv(13, 1, glm::value_ptr(cameraPosition));
+    glUniform3fv(14, 1, glm::value_ptr(ballNode->position));
+    updateNodeTransformations(rootNode, VP, glm::mat4(1.0f));
 }
 
 
@@ -403,6 +417,26 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
         case GEOMETRY: break;
         case POINT_LIGHT:
             lightSources[node->lightSourceID].position = (node->currentModelMatrix)*glm::vec4(glm::vec3(0.0f), 1.0f);
+            if(node->lightSourceID != -1)
+            {
+                // getting ID from shader
+                GLint posLocation = shader->getUniformFromName(fmt::format("lightSources[{}].position" , node->lightSourceID));
+                GLint ambLocation = shader->getUniformFromName(fmt::format("lightSources[{}].ambient"  , node->lightSourceID));
+                GLint difLocation = shader->getUniformFromName(fmt::format("lightSources[{}].diffuse"  , node->lightSourceID));
+                GLint speLocation = shader->getUniformFromName(fmt::format("lightSources[{}].specular" , node->lightSourceID));
+                GLint conLocation = shader->getUniformFromName(fmt::format("lightSources[{}].constant" , node->lightSourceID));
+                GLint linLocation = shader->getUniformFromName(fmt::format("lightSources[{}].linear"   , node->lightSourceID));
+                GLint quaLocation = shader->getUniformFromName(fmt::format("lightSources[{}].quadratic", node->lightSourceID));
+                // sending to shader
+                glUniform4fv(posLocation, 1, glm::value_ptr(lightSources[node->lightSourceID].position));
+                glUniform3fv(ambLocation, 1, glm::value_ptr(lightSources[node->lightSourceID].ambient));
+                glUniform3fv(difLocation, 1, glm::value_ptr(lightSources[node->lightSourceID].diffuse));
+                glUniform3fv(speLocation, 1, glm::value_ptr(lightSources[node->lightSourceID].specular));
+                glUniform1f(conLocation, lightSources[node->lightSourceID].constant);
+                glUniform1f(linLocation, lightSources[node->lightSourceID].linear);
+                glUniform1f(quaLocation, lightSources[node->lightSourceID].quadratic);
+
+            }
             break;
         case SPOT_LIGHT: break;
     }
@@ -425,7 +459,6 @@ void renderNode(SceneNode* node) {
             }
             break;
         case POINT_LIGHT:
-            // pass the lights postition to the vertex shader
             break;
 
         case SPOT_LIGHT: break;
@@ -442,7 +475,8 @@ void renderFrame(GLFWwindow* window) {
                                               lightSources[1].position,
                                               lightSources[2].position};
     // passing on the light positions to the fragment shader
-    glUniform4fv(13, NR_OF_LIGHTS, &lightPositions[0].x);
+    glUniform4fv(15, NR_OF_LIGHTS, &lightPositions[0].x);
+
 
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);

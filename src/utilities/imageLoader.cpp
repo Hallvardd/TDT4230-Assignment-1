@@ -37,5 +37,4 @@ PNGImage loadPNGFile(std::string fileName)
 	image.pixels = pixels;
 
 	return image;
-
 }

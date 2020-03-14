@@ -2,6 +2,7 @@
 #include <program.hpp>
 #include "glutils.h"
 #include <vector>
+#include "imageLoader.hpp"
 
 template <class T>
 unsigned int generateAttribute(int id, int elementsPerEntry, std::vector<T> data, bool normalize) {
@@ -31,4 +32,19 @@ unsigned int generateBuffer(Mesh &mesh) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size() * sizeof(unsigned int), mesh.indices.data(), GL_STATIC_DRAW);
 
     return vaoID;
+}
+
+unsigned int generateTextureID(PNGImage &image)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width,image.height,
+                   0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
+    // generating and configuring min maps.
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+
+    return textureID;
 }
