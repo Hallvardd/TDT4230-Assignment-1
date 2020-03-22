@@ -17,15 +17,23 @@
 #include "sceneGraph.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
+#include <string.h>
 
 #include "utilities/imageLoader.hpp"
 #include "utilities/glfont.h"
 
-enum KeyFrameAction {
+enum KeyFrameAction{
     BOTTOM, TOP
 };
 
 #include <timestamps.h>
+
+// Load images
+PNGImage charmapPNG = loadPNGFile("../res/textures/charmap.png");
+PNGImage diffuseWalPNG = loadPNGFile("../res/textures/charmap.png")
+// character height and width
+const float char_width  = 29.0;
+const float char_height = 39.0;
 
 double padPositionX = 0;
 double padPositionZ = 0;
@@ -33,11 +41,16 @@ double padPositionZ = 0;
 unsigned int currentKeyFrame  = 0;
 unsigned int previousKeyFrame = 0;
 
+// Geomertry
 SceneNode* rootNode;
 SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* padNode;
 
+// Text
+SceneNode* textNode;
+
+// Lights
 SceneNode* rootLightNode;
 SceneNode* padLightNode;
 SceneNode* ballLightNode;
@@ -47,6 +60,7 @@ double ballRadius = 3.0f;
 // These are heap allocated, because they should not be initialised at the start of the program
 sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
+Gloom::Shader* _2DShader;
 sf::Sound* sound;
 
 const glm::vec3 boxDimensions(180, 90, 90);
@@ -134,7 +148,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glfwSetCursorPosCallback(window, mouseCallback);
 
     shader = new Gloom::Shader();
+    _2DShader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
+    _2DShader->makeBasicShader("../res/shaders/simple2d.vert", "../res/shaders/simple2d.frag");
     shader->activate();
 
     // Create meshes
@@ -142,16 +158,26 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
     Mesh sphere = generateSphere(1.0, 40, 40);
 
+    // texture mesh
+    std::string textToRender = "Hello World!";
+    Mesh text = generateTextGeometryBuffer(textToRender, char_height/char_width, textToRender.length()*char_width);
+
     // Fill buffers
     unsigned int ballVAO = generateBuffer(sphere);
     unsigned int boxVAO  = generateBuffer(box);
     unsigned int padVAO  = generateBuffer(pad);
+    // text buffer
+    unsigned int textVAO = generateBuffer(text);
+
+    // Create textur buffers
+    unsigned int charmapTextureID = generateTextureID(charmapPNG);
 
     // Construct scene
     rootNode  = createSceneNode();
     boxNode   = createSceneNode();
     padNode   = createSceneNode();
     ballNode  = createSceneNode();
+    textNode  = createSceneNode();
 
     // Creating lightsourceNodes
     rootLightNode = createSceneNode();
@@ -165,6 +191,12 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // BallLightNode position
     ballLightNode->position = (boxDimensions/3.0f)*glm::vec3(-1.0f, -1.0f, -0.5f);
 
+    // Creating a 2D geometry node;
+    textNode->nodeType = _2D_GEOMETRY;
+
+    // Setting the box node as normal mapped
+    boxNode->nodeType = NORMAL_MAPPED_GEOMETRY;
+
     // Setting lightsources as point lights
     rootLightNode->nodeType = POINT_LIGHT;
     padLightNode ->nodeType = POINT_LIGHT;
@@ -176,8 +208,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     ballLightNode->lightSourceID = 2;
 
     // Setting colours for lightSources
-    lightSources[rootLightNode->lightSourceID].diffuse = glm::vec3(0.75f, 0.5f, 0.0f);
-    lightSources[rootLightNode->lightSourceID].specular = glm::vec3(0.75f, 0.5f, 0.0f);
+    lightSources[rootLightNode->lightSourceID].diffuse = glm::vec3(1.0f, 1.0f, 1.0f);
+    lightSources[rootLightNode->lightSourceID].specular = glm::vec3(1.0f, 1.0f, 1.0f);
 
     lightSources[padLightNode->lightSourceID].diffuse = glm::vec3(0.5f, 0.5f, 0.25f);
     lightSources[padLightNode->lightSourceID].specular = glm::vec3(0.5f, 0.5f, 0.25f);
@@ -189,6 +221,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
     rootNode->children.push_back(ballNode);
+    rootNode->children.push_back(textNode);
 
     // attach Light sources to the desired scene nodes.
     rootNode->children.push_back(rootLightNode);
@@ -205,6 +238,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     ballNode->vertexArrayObjectID = ballVAO;
     ballNode->VAOIndexCount = sphere.indices.size();
 
+    textNode->vertexArrayObjectID = textVAO;
+    textNode->VAOIndexCount = text.indices.size();
+    textNode->textureID = charmapTextureID;
+
     getTimeDeltaSeconds();
 
     std::cout << fmt::format("Initialized scene with {} SceneNodes.", totalChildren(rootNode)) << std::endl;
@@ -213,6 +250,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 }
 
 void updateFrame(GLFWwindow* window) {
+    shader -> activate();
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     double timeDelta = getTimeDeltaSeconds();
@@ -415,8 +453,21 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
 
     switch(node->nodeType) {
         case GEOMETRY: break;
+
+        case _2D_GEOMETRY:
+            if(node->textureID != -1){}
+            break;
+
+        case NORMAL_MAPPED_GEOMETRY:
+            if(node->textureID != -1){}
+            break;
+
         case POINT_LIGHT:
-            lightSources[node->lightSourceID].position = (node->currentModelMatrix)*glm::vec4(glm::vec3(0.0f), 1.0f);
+
+            if(node->lightSourceID != -1)
+            {
+                lightSources[node->lightSourceID].position = (node->currentModelMatrix)*glm::vec4(glm::vec3(0.0f), 1.0f);
+            }
             if(node->lightSourceID != -1)
             {
                 // getting ID from shader
@@ -435,7 +486,6 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
                 glUniform1f(conLocation, lightSources[node->lightSourceID].constant);
                 glUniform1f(linLocation, lightSources[node->lightSourceID].linear);
                 glUniform1f(quaLocation, lightSources[node->lightSourceID].quadratic);
-
             }
             break;
         case SPOT_LIGHT: break;
@@ -453,11 +503,35 @@ void renderNode(SceneNode* node) {
 
     switch(node->nodeType) {
         case GEOMETRY:
-            if(node->vertexArrayObjectID != -1) {
+            if(node->vertexArrayObjectID != -1)
+            {
+                glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
+                glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(node->currentModelMatrix));
+                glUniformMatrix3fv(5, 1, GL_FALSE, glm::value_ptr(node->normalMatrix));
+
                 glBindVertexArray(node->vertexArrayObjectID);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;
+
+        case _2D_GEOMETRY:
+            if(node->textureID != -1 && node->vertexArrayObjectID != -1)
+            {
+                glm::mat4 OP = glm::ortho(0.0f, 1336.0f, 0.0f, 768.0f);
+                _2DShader -> activate();
+
+                glUniformMatrix4fv(20, 1, GL_FALSE, glm::value_ptr(OP));
+
+                glBindVertexArray(node->vertexArrayObjectID);
+                glBindTextureUnit(0, node -> textureID);
+                glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
+            }
+            break;
+
+        case NORMAL_MAPPED_GEOMETRY:
+            if(node->textureID != -1){}
+            break;
+
         case POINT_LIGHT:
             break;
 
@@ -470,13 +544,6 @@ void renderNode(SceneNode* node) {
 }
 
 void renderFrame(GLFWwindow* window) {
-    // creating a list of light positions this could be done in a for loop for a higer number of light
-    glm::vec4 lightPositions[NR_OF_LIGHTS] = {lightSources[0].position,
-                                              lightSources[1].position,
-                                              lightSources[2].position};
-    // passing on the light positions to the fragment shader
-    glUniform4fv(15, NR_OF_LIGHTS, &lightPositions[0].x);
-
 
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);

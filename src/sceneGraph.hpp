@@ -13,12 +13,16 @@
 #include <chrono>
 #include <fstream>
 
-enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, SPOT_LIGHT
+enum SceneNodeType
+{
+  GEOMETRY, POINT_LIGHT, SPOT_LIGHT,
+  _2D_GEOMETRY, NORMAL_MAPPED_GEOMETRY
 };
 
-struct SceneNode {
-	SceneNode() {
+struct SceneNode
+{
+	SceneNode()
+    {
 		position = glm::vec3(0, 0, 0);
 		rotation = glm::vec3(0, 0, 0);
 		scale = glm::vec3(1, 1, 1);
@@ -28,6 +32,8 @@ struct SceneNode {
         VAOIndexCount = 0;
 
         lightSourceID = -1;
+        textureID = -1;
+        normalMappedGeometryID = -1;
 
         nodeType = GEOMETRY;
 	}
@@ -58,6 +64,12 @@ struct SceneNode {
 
     //The ID of the lightsourceID
     int lightSourceID;
+
+    //The textureID
+    int textureID;
+
+    // Normal mapped geometry
+    int normalMappedGeometryID;
 
 };
 

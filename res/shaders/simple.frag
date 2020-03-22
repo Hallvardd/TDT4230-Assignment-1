@@ -19,9 +19,10 @@ in layout(location = 11) vec3 normal;
 in layout(location = 12) vec2 textureCoordinates;
 uniform layout(location = 13) vec3 cameraPos;
 uniform layout(location = 14) vec3 ballPos; 
-uniform layout(location = 15) vec4 lightPositions[3]; // location 14-16 since 3 positions
-
+// Light nodes 
 uniform LightSource lightSources[3];
+
+
 out vec4 color;
 
 
@@ -57,16 +58,16 @@ float quadratic = 0.00019f;
 
 void main()
 { 
-    for(int i=0; i<3; i++)
+    for(int i=0; i<1; i++)
     {
         vec3 L = normalize(lightSources[i].position.xyz-fragmentPosition);
         vec3 E = normalize(cameraPos-fragmentPosition);
         vec3 R = normalize(reflect(-L,N));
         float attenuation;
-        float dist = length(lightPositions[i].xyz-fragmentPosition);
+        float dist = length(lightSources[i].position.xyz-fragmentPosition);
 
         // ball position vectors
-        vec3 fragmentToLight = lightPositions[i].xyz - fragmentPosition;
+        vec3 fragmentToLight = lightSources[i].position.xyz - fragmentPosition;
         vec3 fragmentToBall = ballPos - fragmentPosition;
 
         if(length(reject(fragmentToBall, fragmentToLight)) > ballRad || length(fragmentToLight) < length(fragmentToBall)  || dot(fragmentToBall, fragmentToLight) < 0)
