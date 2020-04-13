@@ -31,7 +31,7 @@ enum KeyFrameAction{
 // Load textures
 PNGImage charmapPNG = loadPNGFile("../res/textures/charmap.png");
 PNGImage diffuseWallPNG = loadPNGFile("../res/textures/Brick03_col.png");
-PNGImage normalWallPNG = loadPNGFile("../res/textures/Brick03_nrm.png")
+PNGImage normalWallPNG = loadPNGFile("../res/textures/Brick03_nrm.png");
 
 // character height and width
 const float char_width  = 29.0;
@@ -168,11 +168,12 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     unsigned int ballVAO = generateBuffer(sphere);
     unsigned int boxVAO  = generateBuffer(box);
     unsigned int padVAO  = generateBuffer(pad);
-    // text buffer
     unsigned int textVAO = generateBuffer(text);
 
-    // Create textur buffers
+    // Create texture buffers
     unsigned int charmapTextureID = generateTextureID(charmapPNG);
+    unsigned int normalWallTextureID = generateTextureID(normalWallPNG);
+    unsigned int diffuseWallTextureID = generateTextureID(diffuseWallPNG);
 
     // Construct scene
     rootNode  = createSceneNode();
@@ -233,6 +234,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // assigning IDs to the nodes
     boxNode->vertexArrayObjectID = boxVAO;
     boxNode->VAOIndexCount = box.indices.size();
+    boxNode->normalMappedGeometryID = normalWallTextureID;
+    boxNode->textureID = diffuseWallTextureID;
 
     padNode->vertexArrayObjectID = padVAO;
     padNode->VAOIndexCount = pad.indices.size();
@@ -498,9 +501,6 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar,
 }
 
 void renderNode(SceneNode* node) {
-    glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
-    glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(node->currentModelMatrix));
-    glUniformMatrix3fv(5, 1, GL_FALSE, glm::value_ptr(node->normalMatrix));
 
     switch(node->nodeType) {
         case GEOMETRY:
@@ -542,6 +542,7 @@ void renderNode(SceneNode* node) {
                 glUniform1i(15, GL_TRUE);
 
                 glBindVertexArray(node->vertexArrayObjectID);
+                glBindTextureUnit(0, node -> textureID);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;

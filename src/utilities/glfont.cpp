@@ -46,9 +46,6 @@ Mesh generateTextGeometryBuffer(std::string text, float characterHeightOverWidth
         mesh.textureCoordinates.at(4 * i + 0) = {textXMin, textYMin};
         mesh.textureCoordinates.at(4 * i + 1) = {textXMax, textYMin};
         mesh.textureCoordinates.at(4 * i + 2) = {textXMax, textYMax};
-
-        //mesh.textureCoordinates.at(4 * i + 0) = {textXMin, textYMin};
-        //mesh.textureCoordinates.at(4 * i + 2) = {textXMax, textYMax};
         mesh.textureCoordinates.at(4 * i + 3) = {textXMin, textYMax};
     }
 
