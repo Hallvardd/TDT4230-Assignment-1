@@ -18,7 +18,8 @@ in layout(location = 10) vec3 fragmentPosition;
 in layout(location = 11) vec3 normal;
 in layout(location = 12) vec2 textureCoordinates;
 uniform layout(location = 13) vec3 cameraPos;
-uniform layout(location = 14) vec3 ballPos; 
+uniform layout(location = 14) vec3 ballPos;
+uniform layout(location = 15) bool normalMappedGeometry; 
 // Light nodes 
 uniform LightSource lightSources[3];
 
